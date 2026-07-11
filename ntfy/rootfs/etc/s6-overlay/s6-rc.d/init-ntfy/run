@@ -1,0 +1,120 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# init-ntfy (oneshot)
+#
+# 1. Renders /etc/ntfy/server.yml from the add-on options.
+# 2. Optionally provisions an admin user in the persistent auth database.
+#
+# All persistent state (auth db, message cache, attachments) lives under /data,
+# which Home Assistant keeps across restarts and updates.
+# ==============================================================================
+
+readonly CONFIG_FILE="/etc/ntfy/server.yml"
+readonly DATA_DIR="/data"
+readonly CACHE_FILE="${DATA_DIR}/cache.db"
+readonly AUTH_FILE="${DATA_DIR}/user.db"
+readonly ATTACHMENT_DIR="${DATA_DIR}/attachments"
+
+declare base_url
+declare upstream_base_url
+declare auth_default_access
+declare cache_duration
+declare log_level
+declare behind_proxy
+declare auth_enabled
+
+base_url=$(bashio::config 'base_url')
+upstream_base_url=$(bashio::config 'upstream_base_url')
+auth_default_access=$(bashio::config 'auth_default_access')
+cache_duration=$(bashio::config 'cache_duration')
+log_level=$(bashio::config 'log_level')
+
+# -----------------------------------------------------------------------------
+# Ensure persistent directories exist
+# -----------------------------------------------------------------------------
+mkdir -p /etc/ntfy "${ATTACHMENT_DIR}"
+
+# -----------------------------------------------------------------------------
+# Render /etc/ntfy/server.yml
+# -----------------------------------------------------------------------------
+bashio::log.info "Generating ntfy server configuration..."
+
+{
+    # base-url MUST match the canonical public URL that clients use to reach
+    # this server (reverse proxy / Cloudflare Tunnel). It drives topic links,
+    # attachment URLs and iOS/Firebase push. See DOCS.md for the ingress note.
+    echo "base-url: \"${base_url%/}\""
+
+    # ntfy listens on container port 80. Home Assistant ingress connects here,
+    # and it is also published on the host (default 8199) for the reverse proxy.
+    echo "listen-http: \":80\""
+
+    # Trust X-Forwarded-* headers from the ingress proxy / reverse proxy.
+    if bashio::config.true 'behind_proxy'; then
+        echo "behind-proxy: true"
+    else
+        echo "behind-proxy: false"
+    fi
+
+    # Persistent message cache
+    echo "cache-file: \"${CACHE_FILE}\""
+    echo "cache-duration: \"${cache_duration}\""
+
+    # Persistent attachment cache
+    echo "attachment-cache-dir: \"${ATTACHMENT_DIR}\""
+
+    # Authentication (persistent user database)
+    if bashio::config.true 'auth_enabled'; then
+        echo "auth-file: \"${AUTH_FILE}\""
+        echo "auth-default-access: \"${auth_default_access}\""
+    else
+        bashio::log.warning "auth_enabled is false: server is OPEN (read-write for everyone)."
+    fi
+
+    # Upstream relay used to wake up iOS devices via ntfy.sh
+    if bashio::var.has_value "${upstream_base_url}"; then
+        echo "upstream-base-url: \"${upstream_base_url%/}\""
+    fi
+
+    # Logging
+    echo "log-level: \"${log_level}\""
+    echo "log-format: \"text\""
+
+    # Keep websocket/JSON stream connections alive through proxies
+    echo "keepalive-interval: \"45s\""
+} > "${CONFIG_FILE}"
+
+bashio::log.info "Wrote ${CONFIG_FILE}"
+
+# -----------------------------------------------------------------------------
+# Provision an admin user (idempotent)
+# -----------------------------------------------------------------------------
+if bashio::config.true 'auth_enabled' \
+    && bashio::config.has_value 'admin_user' \
+    && bashio::config.has_value 'admin_password'; then
+
+    admin_user=$(bashio::config 'admin_user')
+    admin_password=$(bashio::config 'admin_password')
+
+    # ntfy refuses to touch the auth db unless the file already exists; an empty
+    # file is enough for it to create the schema on first use.
+    if [ ! -f "${AUTH_FILE}" ]; then
+        touch "${AUTH_FILE}"
+    fi
+
+    if ntfy user --config "${CONFIG_FILE}" list 2>/dev/null \
+        | grep -qE "^user ${admin_user} "; then
+        bashio::log.info "Admin user '${admin_user}' already exists; leaving it unchanged."
+    else
+        bashio::log.info "Creating admin user '${admin_user}'..."
+        if NTFY_PASSWORD="${admin_password}" \
+            ntfy user --config "${CONFIG_FILE}" add --role=admin "${admin_user}"; then
+            bashio::log.info "Admin user '${admin_user}' created."
+        else
+            bashio::log.warning "Could not create admin user '${admin_user}'; continuing anyway."
+        fi
+    fi
+elif bashio::config.true 'auth_enabled'; then
+    bashio::log.info "No admin_user/admin_password set; skipping admin provisioning."
+fi

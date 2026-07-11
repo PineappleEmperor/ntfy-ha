@@ -1,0 +1,9 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# ntfy (longrun) - starts the ntfy server
+# ==============================================================================
+
+bashio::log.info "Starting ntfy server..."
+
+exec ntfy serve --config /etc/ntfy/server.yml

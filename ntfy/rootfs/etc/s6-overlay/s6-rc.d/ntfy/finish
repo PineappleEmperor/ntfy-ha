@@ -1,0 +1,21 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Take down the S6 supervision tree (and the add-on) when ntfy stops so that a
+# fatal error surfaces in Home Assistant instead of the service silently idling.
+# ==============================================================================
+declare NTFY_EXIT_CODE=${1}
+declare NTFY_SIGNAL=${2}
+
+bashio::log.info \
+    "ntfy exited with code ${NTFY_EXIT_CODE} (by signal ${NTFY_SIGNAL})"
+
+if [[ "${NTFY_EXIT_CODE}" -ne 0 ]] && [[ "${NTFY_EXIT_CODE}" -ne 256 ]]; then
+    bashio::log.warning "Halting add-on."
+    exec /run/s6/basedir/bin/halt
+fi
+
+if [[ "${NTFY_EXIT_CODE}" -eq 256 ]] && [[ "${NTFY_SIGNAL}" -ne 15 ]]; then
+    bashio::log.warning "Halting add-on."
+    exec /run/s6/basedir/bin/halt
+fi
