@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- Bump add-on base image to `ghcr.io/hassio-addons/base:21.0.0`.
+- Drop `armv7` (base 20.x+ no longer ships armv7); supported arch is now
+  `aarch64` + `amd64`. Target host is amd64 (Intel N100).
+
 ## 1.0.0
 
 Initial release.
