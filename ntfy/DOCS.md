@@ -21,7 +21,8 @@ updates.
 3. The **ntfy** add-on now appears under *Pineapple HA Add-ons*. Open it and
    click **Install**.
 4. Set the options (see below), then **Start** the add-on.
-5. Open the web UI from the sidebar (ingress) or via your public URL.
+5. Open the web UI with the **Open Web UI** button (it points at
+   `http://<HA-LAN-IP>:8199/`) or via your public URL.
 
 ## Ports
 
@@ -29,11 +30,9 @@ updates.
 |-----------|----------------|---------|
 | `80/tcp`  | `8199`         | ntfy HTTP API + web UI |
 
-ntfy listens on container port **80**. That port is:
-
-* used internally by Home Assistant **ingress** (sidebar panel), and
-* published on the host as **8199** so a reverse proxy / Cloudflare Tunnel can
-  reach it.
+ntfy listens on container port **80**, published on the host as **8199**. Use
+that port for everything: the **Open Web UI** button (`http://<HA-LAN-IP>:8199/`),
+a browser on your LAN, and your reverse proxy / Cloudflare Tunnel.
 
 You can change the host port `8199` to anything you like in the add-on's
 **Network** tab. If you do, remember to update the matching target in your
@@ -47,7 +46,7 @@ reverse proxy / Cloudflare Tunnel (below).
 | `upstream_base_url` | string | `https://ntfy.sh` | Upstream server used to wake up iOS devices via the ntfy.sh push relay. Leave as-is unless you have your own upstream. Clear it to disable. |
 | `auth_enabled` | bool | `true` | Enable the user/ACL system (persistent auth database at `/data/user.db`). If `false`, the server is fully open (read-write for everyone). |
 | `auth_default_access` | list | `deny-all` | Default access for users/anonymous clients with no explicit ACL: `deny-all`, `read-only`, `read-write`, `write-only`. `deny-all` is the safe default for a public server. |
-| `behind_proxy` | bool | `true` | Trust `X-Forwarded-*` headers. Keep `true` when running behind ingress and/or a reverse proxy so rate-limiting and client IPs are correct. |
+| `behind_proxy` | bool | `true` | Trust `X-Forwarded-*` headers. Keep `true` when running behind a reverse proxy / Cloudflare Tunnel so rate-limiting and client IPs are correct. |
 | `cache_duration` | string | `12h` | How long messages are kept in the cache (e.g. `12h`, `24h`, `48h`). |
 | `admin_user` | string | *(unset)* | Optional. If set together with `admin_password` (and `auth_enabled: true`), an **admin** user is created on start if it does not already exist. |
 | `admin_password` | password | *(unset)* | Password for `admin_user`. Only used the first time the user is created; changing it here later does **not** update an existing user (use `ntfy user change-pass` — see below). |
@@ -72,24 +71,23 @@ ntfy user --config /etc/ntfy/server.yml add somephone           # a regular user
 ntfy access --config /etc/ntfy/server.yml somephone 'alerts_*' rw
 ```
 
-## Home Assistant ingress (sidebar panel) — important limitation
+## No ingress / sidebar panel — why
 
-The add-on enables ingress so ntfy shows up in the HA sidebar. However, **ntfy
-does not support being served under a URL sub-path**, and Home Assistant ingress
-serves add-ons under a per-session path such as
-`/api/hassio_ingress/<token>/`. As a result the ingress panel may fail to load
-the web app's static assets or make its API/websocket calls correctly.
+Home Assistant **ingress** serves add-ons under a per-session sub-path such as
+`/api/hassio_ingress/<token>/`. **ntfy does not support being served under a URL
+sub-path** — its web app requests static assets and its API/websocket at
+absolute root paths (`/static/...`, `/config.js`, `/v1/...`), which under an
+ingress sub-path resolve to the HA root and 404. The panel therefore never
+loaded correctly, so the add-on does **not** use ingress.
 
-Additionally, ntfy's `base-url` is a single global value and **must** equal the
-public URL your clients actually use (so push, attachments and topic links
-work). It therefore points at `base_url` (your Cloudflare hostname), not at the
-ingress URL.
+Instead, the **Open Web UI** button opens the web UI on the direct host port
+(`http://<HA-LAN-IP>:8199/`). ntfy's `base-url` is a single global value that
+**must** equal the public URL your clients actually use (so push, attachments
+and topic links work), so it points at `base_url` (your Cloudflare hostname).
 
-**Recommendation:** treat the sidebar panel as a convenience shortcut, and use
-the **public URL** (`base_url`, e.g. `https://ntfy.juicebox.casa`) — or the
-direct host port `http://<HA-LAN-IP>:8199` on your LAN — as the real way to
-reach the web UI and to point the mobile/desktop apps at. This is the supported,
-fully-working path.
+**To reach the web UI:** the **Open Web UI** button / `http://<HA-LAN-IP>:8199`
+on your LAN, or your **public URL** (`base_url`, e.g.
+`https://ntfy.juicebox.casa`). Point the mobile/desktop apps at the public URL.
 
 ## Exposing ntfy publicly with a Cloudflare Tunnel (manual)
 
@@ -169,8 +167,8 @@ It is included in Home Assistant add-on backups automatically.
 
 ## Troubleshooting
 
-* **Web UI works via `8199`/Cloudflare but not in the sidebar** — expected; see
-  the ingress limitation above.
+* **No ntfy entry in the HA sidebar** — expected; the add-on does not use
+  ingress (see above). Use the **Open Web UI** button or `http://<HA-IP>:8199`.
 * **`401`/`403` when publishing** — with `auth_default_access: deny-all` you
   must authenticate with a user/token that has write access to the topic.
 * **iOS notifications not arriving instantly** — ensure `upstream_base_url` is

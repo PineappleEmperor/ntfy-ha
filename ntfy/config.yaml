@@ -1,12 +1,12 @@
 ---
 name: "ntfy"
-version: "1.0.1"
+version: "1.0.2"
 slug: "ntfy"
 description: >-
   Self-hosted ntfy push notification server (send/receive push notifications to
   your phone or desktop via PUT/POST), with persistent auth, cache and
-  attachment storage, ingress and an optional direct host port for a reverse
-  proxy / Cloudflare Tunnel.
+  attachment storage, and a direct host port for a reverse proxy /
+  Cloudflare Tunnel.
 url: "https://github.com/PineappleEmperor/ntfy-ha/tree/main/ntfy"
 arch:
   - aarch64
@@ -14,17 +14,18 @@ arch:
 init: false
 startup: services
 boot: auto
-ingress: true
-ingress_port: 80
-panel_icon: "mdi:bell-ring"
-panel_title: "ntfy"
+# "Open Web UI" button on the add-on page. [HOST] resolves to the Home
+# Assistant host IP and [PORT:80] to the host port mapped to container port 80
+# (8199 by default), so the button opens the working ntfy web UI on the LAN.
+webui: "http://[HOST]:[PORT:80]/"
 ports:
   80/tcp: 8199
 ports_description:
   80/tcp: >-
     ntfy HTTP API + web UI, published on host port 8199. Point your reverse
-    proxy / Cloudflare Tunnel at this port. Change the host port here to match
-    your tunnel; leave empty to disable direct exposure and use ingress only.
+    proxy / Cloudflare Tunnel at this port, or open it directly on your LAN.
+    Change the host port here to match your tunnel; leave empty to disable
+    direct exposure.
 options:
   base_url: "https://ntfy.juicebox.casa"
   upstream_base_url: "https://ntfy.sh"

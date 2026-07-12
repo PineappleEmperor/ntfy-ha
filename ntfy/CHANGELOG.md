@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2
+
+- Drop Home Assistant **ingress** / sidebar panel. ntfy cannot be served under a
+  URL sub-path (its web app uses absolute asset/API paths), so the ingress panel
+  never loaded correctly. The web UI is now reached via the direct host port
+  (`8199`) or your public URL.
+- Point the add-on **"Open Web UI"** button at `http://[HOST]:[PORT:80]/` (the
+  LAN host IP + host port 8199) so it opens the working web UI.
+
 ## 1.0.1
 
 - Bump add-on base image to `ghcr.io/hassio-addons/base:21.0.0`.
