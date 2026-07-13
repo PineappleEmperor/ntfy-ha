@@ -115,12 +115,16 @@ dashboard:
 ### Tokens and per-phone users
 
 Once the admin user exists, mint an access token (for scripts, a Cloudflare
-Worker, Home Assistant automations, etc.):
+Worker, Home Assistant automations, etc.). Run it inside the add-on container
+— e.g. from a terminal with Docker access on the HA host:
 
 ```bash
-ntfy token add <admin_user>
+docker exec $(docker ps -qf name=ntfy) \
+  ntfy token add --config /etc/ntfy/server.yml <admin_user>
 # → tk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+The `--config /etc/ntfy/server.yml` is required so ntfy finds the auth file.
 
 Use that token as a `Bearer` credential:
 
