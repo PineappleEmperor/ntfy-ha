@@ -50,7 +50,36 @@ reverse proxy / Cloudflare Tunnel (below).
 | `cache_duration` | string | `12h` | How long messages are kept in the cache (e.g. `12h`, `24h`, `48h`). |
 | `admin_user` | string | *(unset)* | Optional. If set together with `admin_password` (and `auth_enabled: true`), an **admin** user is created on start if it does not already exist. |
 | `admin_password` | password | *(unset)* | Password for `admin_user`. Only used the first time the user is created; changing it here later does **not** update an existing user (use `ntfy user change-pass` — see below). |
+| `users` | list | `[]` | Optional. Declaratively provision scoped (non-admin) users with per-user topic ACLs (see below). No shell needed. |
 | `log_level` | list | `info` | ntfy log level: `trace`, `debug`, `info`, `warn`, `error`. |
+
+### Scoped users (`users`)
+
+Instead of using the admin account everywhere, give each device its own login
+scoped to only the topics it needs. Add entries under `users` in the add-on
+**Configuration** — no shell / `docker exec`:
+
+```yaml
+users:
+  - name: phone
+    password: choose-a-strong-one
+    topics: "hab-*"        # optional ACL topic pattern; omit for none
+    access: read-only      # optional: read-only (default) | read-write | write-only | deny-all
+```
+
+Each field:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Username to create (regular, non-admin role). |
+| `password` | yes | Used **only** when the user is first created. Change it later with `ntfy user change-pass <name>`; editing it here does not update an existing user. |
+| `topics` | no | ACL topic pattern to grant (e.g. `hab-*`, `alerts_*`). Omit to create a login with no topic grants. |
+| `access` | no | Access level for `topics`: `read-only` (default), `read-write`, `write-only`, `deny-all`. |
+
+Users are created once; the **ACL is re-applied on every start**, so changing
+`topics`/`access` here and restarting keeps the grant in sync. A phone that only
+receives notifications needs just `read-only` — publishing is done by your
+server/token, not the phone.
 
 ### About the admin user
 

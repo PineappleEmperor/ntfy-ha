@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+- Add a **`users`** option: declaratively provision scoped (non-admin) users
+  with per-user topic ACLs straight from the add-on config — no shell /
+  `docker exec` needed. Each entry is `name` + `password` (+ optional `topics`
+  pattern and `access`, default `read-only`). Users are created once (password
+  used only at creation); the ACL is re-applied on every start so topic/access
+  changes take effect on restart. Ideal for a phone that only needs to **read**
+  its notification topics (e.g. `topics: "hab-*"`).
+
 ## 1.1.0
 
 - Enable the ntfy **web UI account page** (`enable-login: true`) whenever

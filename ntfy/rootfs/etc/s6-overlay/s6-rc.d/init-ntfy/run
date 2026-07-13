@@ -93,33 +93,72 @@ bashio::log.info "Generating ntfy server configuration..."
 bashio::log.info "Wrote ${CONFIG_FILE}"
 
 # -----------------------------------------------------------------------------
-# Provision an admin user (idempotent)
+# Provision users in the persistent auth database (idempotent)
 # -----------------------------------------------------------------------------
-if bashio::config.true 'auth_enabled' \
-    && bashio::config.has_value 'admin_user' \
-    && bashio::config.has_value 'admin_password'; then
+# All provisioning needs auth on and the auth db present. ntfy refuses to touch
+# the db unless the file already exists; an empty file is enough for it to
+# create the schema on first use.
+if bashio::config.true 'auth_enabled'; then
 
-    admin_user=$(bashio::config 'admin_user')
-    admin_password=$(bashio::config 'admin_password')
-
-    # ntfy refuses to touch the auth db unless the file already exists; an empty
-    # file is enough for it to create the schema on first use.
     if [ ! -f "${AUTH_FILE}" ]; then
         touch "${AUTH_FILE}"
     fi
 
-    if ntfy user --config "${CONFIG_FILE}" list 2>/dev/null \
-        | grep -qE "^user ${admin_user} "; then
-        bashio::log.info "Admin user '${admin_user}' already exists; leaving it unchanged."
-    else
-        bashio::log.info "Creating admin user '${admin_user}'..."
-        if NTFY_PASSWORD="${admin_password}" \
-            ntfy user --config "${CONFIG_FILE}" add --role=admin "${admin_user}"; then
-            bashio::log.info "Admin user '${admin_user}' created."
+    # --- Admin user (role=admin, read-write to everything) ---
+    if bashio::config.has_value 'admin_user' \
+        && bashio::config.has_value 'admin_password'; then
+
+        admin_user=$(bashio::config 'admin_user')
+        admin_password=$(bashio::config 'admin_password')
+
+        if ntfy user --config "${CONFIG_FILE}" list 2>/dev/null \
+            | grep -qE "^user ${admin_user} "; then
+            bashio::log.info "Admin user '${admin_user}' already exists; leaving it unchanged."
         else
-            bashio::log.warning "Could not create admin user '${admin_user}'; continuing anyway."
+            bashio::log.info "Creating admin user '${admin_user}'..."
+            if NTFY_PASSWORD="${admin_password}" \
+                ntfy user --config "${CONFIG_FILE}" add --role=admin "${admin_user}"; then
+                bashio::log.info "Admin user '${admin_user}' created."
+            else
+                bashio::log.warning "Could not create admin user '${admin_user}'; continuing anyway."
+            fi
         fi
+    else
+        bashio::log.info "No admin_user/admin_password set; skipping admin provisioning."
     fi
-elif bashio::config.true 'auth_enabled'; then
-    bashio::log.info "No admin_user/admin_password set; skipping admin provisioning."
+
+    # --- Extra scoped users (regular role) with per-user topic ACLs ---
+    # Each entry provisions a login that only needs specific topics — e.g. a
+    # phone that READS its notification topics (`hab-*`). The user is created
+    # once; the password here is used only at creation (change it later with
+    # `ntfy user change-pass`). The ACL is re-applied every start, so a topic
+    # or access change in the options takes effect on the next restart.
+    for idx in $(bashio::config 'users|keys'); do
+        u_name=$(bashio::config "users[${idx}].name")
+        u_password=$(bashio::config "users[${idx}].password")
+        u_topics=$(bashio::config "users[${idx}].topics")
+        u_access=$(bashio::config "users[${idx}].access")
+        # bashio returns "null" for absent optional keys — normalise to empty.
+        [ "${u_topics}" = "null" ] && u_topics=""
+        [ "${u_access}" = "null" ] && u_access=""
+        [ -n "${u_access}" ] || u_access="read-only"
+
+        if ntfy user --config "${CONFIG_FILE}" list 2>/dev/null \
+            | grep -qE "^user ${u_name} "; then
+            bashio::log.info "User '${u_name}' already exists; leaving password unchanged."
+        else
+            bashio::log.info "Creating user '${u_name}'..."
+            if ! NTFY_PASSWORD="${u_password}" \
+                ntfy user --config "${CONFIG_FILE}" add "${u_name}"; then
+                bashio::log.warning "Could not create user '${u_name}'; skipping."
+                continue
+            fi
+        fi
+
+        if [ -n "${u_topics}" ]; then
+            bashio::log.info "Granting '${u_name}' ${u_access} on '${u_topics}'."
+            ntfy access --config "${CONFIG_FILE}" "${u_name}" "${u_topics}" "${u_access}" \
+                || bashio::log.warning "Could not set ACL for '${u_name}'."
+        fi
+    done
 fi
