@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0
+
+- Enable the ntfy **web UI account page** (`enable-login: true`) whenever
+  `auth_enabled` is on. You can now sign in as the admin user in the web UI and
+  create/revoke **access tokens** from Account → Access tokens — no shell /
+  `docker exec` needed. Signup stays disabled (private server); the admin mints
+  users and tokens.
+
 ## 1.0.2
 
 - Drop Home Assistant **ingress** / sidebar panel. ntfy cannot be served under a

@@ -68,6 +68,11 @@ bashio::log.info "Generating ntfy server configuration..."
     if bashio::config.true 'auth_enabled'; then
         echo "auth-file: \"${AUTH_FILE}\""
         echo "auth-default-access: \"${auth_default_access}\""
+        # Enable the web UI account page (sign in, manage access tokens). Without
+        # this ntfy's web app shows no account menu — the "Users" under Settings
+        # is only a client-side credential store, not server accounts. Signup
+        # stays off (private server); users/tokens are minted by the admin.
+        echo "enable-login: true"
     else
         bashio::log.warning "auth_enabled is false: server is OPEN (read-write for everyone)."
     fi

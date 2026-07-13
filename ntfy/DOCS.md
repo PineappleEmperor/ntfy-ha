@@ -115,8 +115,24 @@ dashboard:
 ### Tokens and per-phone users
 
 Once the admin user exists, mint an access token (for scripts, a Cloudflare
-Worker, Home Assistant automations, etc.). Run it inside the add-on container
-— e.g. from a terminal with Docker access on the HA host:
+Worker, Home Assistant automations, etc.).
+
+**From the web UI (recommended).** With `auth_enabled: true` the add-on turns on
+ntfy's account page (`enable-login`), so you can do this in the browser:
+
+1. Open the web UI (**Open Web UI** button, or your public URL) and **Sign in**
+   as `admin_user`.
+2. Open the account menu (top right) → **Account** → **Access tokens** →
+   **Create access token**.
+3. Copy the `tk_…` value.
+
+> No account menu / sign-in? You're on an add-on version before `1.1.0` (which
+> added `enable-login`), or `auth_enabled` is `false`. Update the add-on and
+> make sure auth is on. The **Users** list under **Settings** is *not* this — it
+> is only a client-side store of credentials the web app uses to read topics.
+
+**From the CLI (fallback).** Run it inside the add-on container — e.g. from a
+terminal with Docker access on the HA host:
 
 ```bash
 docker exec $(docker ps -qf name=ntfy) \
